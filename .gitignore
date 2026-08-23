@@ -1,0 +1,8 @@
+.venv/
+*.pyc
+.env
+/data/DATABASE/
+/HF/
+/.chainlit/
+/data/engrams/*
+!/data/engrams/samples/
