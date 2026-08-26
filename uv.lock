@@ -3562,18 +3562,26 @@ source = { editable = "." }
 dependencies = [
     { name = "chainlit" },
     { name = "chromadb" },
+    { name = "fastapi" },
+    { name = "httpx" },
     { name = "openai" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "sentence-transformers" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "chainlit", specifier = ">=2.11.1" },
     { name = "chromadb", specifier = ">=1.5.9" },
+    { name = "fastapi", specifier = ">=0.140.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "openai", specifier = ">=2.48.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "sentence-transformers", specifier = ">=5.6.0" },
+    { name = "uvicorn", specifier = ">=0.51.0" },
 ]
 
 [[package]]
