@@ -91,6 +91,18 @@ Your web browser will open automatically. Try asking it, "What is Twinage?" (Not
 
 While the official Twinage implementation serves as an FAQ, you can build your own "Personal Guide" by isolating and accumulating logs of your personal interactions with AI as "thought components," and using those records to generate responses.
 
+> [!NOTE]
+> The interaction logs used here are not limited to Twinage; you can also use conversation logs from cloud AI services such as `ChatGPT` and `Claude`.
+
+### Preparation Before Extraction (Setting Environment Variables)
+The extractor identifies AI and user speaking turns by looking for bold name tags (e.g., `**ChatGPT**`) within the interaction logs. To ensure the logs are parsed correctly, please configure the following environment variables in your `.env` file before running the extraction.
+
+*   **`TWINAGE_ASSISTANT_NAME` (Required)**: Specify the name of the AI you interacted with (e.g., `ChatGPT`, `Claude`, `Gemini`, `Assistant`). If this is not set, an error will occur and the process will not start.
+*   **`TWINAGE_USER_NAME` (Optional)**: Specify your (the user's) name. If not set, it defaults to `You`.
+
+> [!WARNING]
+> If the specified name tags are not found anywhere in the markdown file, the extractor will assume there are no valid turns and skip the file. Please ensure that the exact text in the markdown file perfectly matches your environment variables.
+
 ### Automatic Extraction from Obsidian Web Clipper
 A dedicated extractor is included to process markdown-formatted chat logs (`.md`) saved via Obsidian Web Clipper or similar tools.
 
