@@ -12,25 +12,26 @@ load_dotenv()
 # ==========================================
 # スキーマ定義
 # ==========================================
-class JudgmentRequest(BaseModel):
+class EvaluateRequest(BaseModel):
     """外部システム（Dify等）からの判定リクエスト"""
     proposal: str = Field(..., description="判定対象となる提案や行動計画")
     context_info: Optional[str] = Field(default=None, description="判定の補助となる背景情報")
     category_filter: Optional[str] = Field(default=None, description="検索時のカテゴリ絞り込み")
 
-class JudgmentResponse(BaseModel):
+class EvaluateResponse(BaseModel):
     """APIが返却する判定結果の構造"""
-    judgment: Literal["ACCEPT", "REJECT", "UNKNOWN"] = Field(description="判定結果")
+    evaluate: Literal["ACCEPT", "REJECT", "UNKNOWN"] = Field(description="判定結果")
     reasoning: str = Field(description="判定の根拠となった推論")
     cited_sequences: List[int] = Field(default_factory=list, description="引用した記憶のシーケンス番号")
 
 # ==========================================
 # サービス設定
 # ==========================================
-app = FastAPI(title="Twinage Judgment API", version="1.0.0")
+app = FastAPI(title="Twinage Evaluate API", version="1.0.0")
 
-# 内部に秘匿された検索API（第2層）のエンドポイント
-INTERNAL_SEARCH_API_URL = os.environ.get("TWINAGE_SEARCH_API_URL", "http://127.0.0.1:8082/v1/engrams/search")
+l1_host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
+l1_port = os.getenv("TWINAGE_L1_PORT", "8082")
+retrieval_url = f"http://{l1_host}:{l1_port}/v1/retrieval"
 
 LLM_URL = os.environ.get("TWINAGE_LLM_URL", None)
 LLM_MODEL = os.environ.get("TWINAGE_LLM_MODEL", "gpt-4o")
@@ -42,13 +43,13 @@ llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=LLM_URL)
 # ==========================================
 # エンドポイント
 # ==========================================
-@app.post("/v1/evaluate", response_model=JudgmentResponse)
-async def evaluate_endpoint(request: JudgmentRequest):
+@app.post("/v1/evaluate", response_model=EvaluateResponse)
+async def evaluate_endpoint(request: EvaluateRequest):
     """
     外部からの提案を受け取り、内部のRetrieval APIを叩いて記憶を引き出し、
     LLMによる3値判定(ACCEPT/REJECT/UNKNOWN)を下して返却します。
     """
-    print(f"\n🔄 [Judgment API] 判定リクエスト受信: {request.proposal[:40]}...")
+    print(f"\n🔄 [Evaluate API] 判定リクエスト受信: {request.proposal[:40]}...")
     
     # 1. 内部のRetrieval APIへのリクエスト構築
     search_query = request.proposal
@@ -62,11 +63,11 @@ async def evaluate_endpoint(request: JudgmentRequest):
     # 2. 内部HTTP通信（多段API）
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(INTERNAL_SEARCH_API_URL, json=payload, timeout=10.0)
+            response = await client.post(retrieval_url, json=payload, timeout=10.0)
             response.raise_for_status()
             api_result = response.json()
         except Exception as e:
-            print(f"❌ [Judgment API] 内部検索API通信エラー: {e}")
+            print(f"❌ [Evaluate API] 内部検索API通信エラー: {e}")
             raise HTTPException(status_code=500, detail=f"内部記憶ノードへのアクセスに失敗しました: {e}")
 
     items = api_result.get("items", [])
@@ -85,7 +86,7 @@ async def evaluate_endpoint(request: JudgmentRequest):
 
 【出力フォーマット (JSON)】
 {
-  "judgment": "ACCEPT" | "REJECT" | "UNKNOWN",
+  "evaluate": "ACCEPT" | "REJECT" | "UNKNOWN",
   "reasoning": "判定の根拠となった推論の解説（自然言語）",
   "cited_sequences": [引用した記憶のSequence番号の数値リスト]
 }
@@ -111,13 +112,32 @@ async def evaluate_endpoint(request: JudgmentRequest):
         
         raw_json_str = completion.choices[0].message.content
         parsed_data = json.loads(raw_json_str)
-        return JudgmentResponse(**parsed_data)
+        return EvaluateResponse(**parsed_data)
         
     except Exception as e:
-        print(f"❌ [Judgment API] LLM推論エラー: {e}")
+        print(f"❌ [Evaluate API] LLM推論エラー: {e}")
         raise HTTPException(status_code=500, detail=f"LLMによる判定処理に失敗しました: {e}")
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    # Retrieval API(8082)と衝突しないようにポート8083で起動
-    uvicorn.run(app, host="127.0.0.1", port=8083)
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    l2_host = os.getenv("TWINAGE_L2_HOST", "127.0.0.1")
+    l2_port = int(os.getenv("TWINAGE_L2_PORT", 8083))
+    
+    reload_str = os.getenv("TWINAGE_RELOAD", "True").lower()
+    is_reload = reload_str in ("true", "1", "t", "yes")
+
+    print(f"[Twinage L2] Starting Evaluate API on http://{l2_host}:{l2_port}/v1/evaluate")
+    print(f"[Twinage L2] Target L1 (Retrieval) URL: {retrieval_url}")
+    print(f"[Twinage L2] Reload mode: {is_reload}")
+
+    uvicorn.run(
+        "twinage.api.L2.evaluate:app", 
+        host=l2_host, 
+        port=l2_port, 
+        reload=is_reload
+    )

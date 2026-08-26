@@ -53,7 +53,7 @@ class SearchQuery(BaseModel):
     top_k: int = Field(default=5, ge=1, description="取得件数（0以下はエラー、81以上は80に丸められます）")
     category: Optional[str] = Field(default=None, description="思考カテゴリでの絞り込み")
 
-class SearchResult(BaseModel):
+class RetrievalResult(BaseModel):
     items: List[Dict[str, Any]]
     debug_info: str
 
@@ -136,7 +136,7 @@ def execute_flat_search(query: str, collection, data_dir: str, top_k: int = 20, 
 # ==========================================
 # エンドポイント
 # ==========================================
-@app.post("/v1/engrams/search", response_model=SearchResult)
+@app.post("/v1/retrieval", response_model=RetrievalResult)
 async def search_endpoint(request: SearchQuery):
     retrieved_items, debug_text = execute_flat_search(
         query=request.query,
@@ -148,11 +148,28 @@ async def search_endpoint(request: SearchQuery):
     
     retrieved_items.sort(key=lambda x: x["sequence"])
     
-    return SearchResult(
+    return RetrievalResult(
         items=retrieved_items,
         debug_info=debug_text
     )
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8082)
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
+    port = int(os.getenv("TWINAGE_L1_PORT", 8082))
+    reload_str = os.getenv("TWINAGE_RELOAD", "True").lower()
+    is_reload = reload_str in ("true", "1", "t", "yes")
+
+    print(f"[Twinage L1] Starting Retrieval API on http://{host}:{port} (Reload: {is_reload})")
+
+    uvicorn.run(
+        "twinage.api.L1.retrieval:app", 
+        host=host, 
+        port=port, 
+        reload=is_reload
+    )

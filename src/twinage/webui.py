@@ -11,11 +11,12 @@ load_dotenv()
 # グローバル設定と初期化 (L2用に劇的にスリム化)
 # ==========================================
 # ChromaDBやEmbeddingに関する設定は不要になりました
-LLM_URL = os.environ.get("TWINAGE_LLM_URL", None)
-LLM_MODEL = os.environ.get("TWINAGE_LLM_MODEL", "gpt-4o")
+llm_url = os.environ.get("TWINAGE_LLM_URL", None)
+llm_model = os.environ.get("TWINAGE_LLM_MODEL", "gpt-4o")
 
-# L1(検索API)のエンドポイント
-SEARCH_API_URL = os.environ.get("TWINAGE_SEARCH_API_URL", "http://127.0.0.1:8082/v1/engrams/search")
+l1_host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
+l1_port = os.getenv("TWINAGE_L1_PORT", "8082")
+retrieval_url = f"http://{l1_host}:{l1_port}/v1/retrieval"
 
 llm_client = None
 
@@ -24,14 +25,14 @@ async def on_chat_start():
     global llm_client
     
     openai_key = os.environ.get("OPENAI_API_KEY")
-    llm_api_key = "dummy-key" if LLM_URL else openai_key
+    llm_api_key = "dummy-key" if llm_url else openai_key
     
     if not llm_api_key:
         await cl.Message(content="【エラー】クラウド利用時は OPENAI_API_KEY を設定してください。").send()
         return
 
     # LLMクライアントの初期化のみ（ChromaDBの初期化はL1に任せるため削除）
-    llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=LLM_URL)
+    llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=llm_url)
 
     system_prompt = """
 あなたは作者の思考の鏡であり、自律した認知の拡張体である『ツイネージュ』のAIエージェントです。
@@ -70,11 +71,11 @@ async def search_past_thoughts(query: str) -> str:
     # HTTP経由でL1の検索ノードを叩く
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(SEARCH_API_URL, json=payload, timeout=10.0)
+            response = await client.post(retrieval_url, json=payload, timeout=10.0)
             response.raise_for_status()
             api_result = response.json()
         except Exception as e:
-            error_msg = f"❌ [L2 WebUI] 内部検索API(L1)への通信エラー: {e}"
+            error_msg = f"❌ [WebUI] 内部検索API(L1)への通信エラー: {e}"
             print(error_msg)
             current_step.output = error_msg
             return "記憶へのアクセスに失敗しました。"
@@ -128,7 +129,7 @@ async def on_message(message: cl.Message):
         current_tool_choice = {"type": "function", "function": {"name": "search_past_thoughts"}} if iteration == 0 else "auto"
         
         response = await llm_client.chat.completions.create(
-            model=LLM_MODEL,
+            model=llm_model,
             messages=messages,
             tools=tools,
             tool_choice=current_tool_choice,
@@ -159,7 +160,7 @@ async def on_message(message: cl.Message):
             
         else:
             stream_response = await llm_client.chat.completions.create(
-                model=LLM_MODEL,
+                model=llm_model,
                 messages=messages,
                 stream=True,
                 temperature=0.1
