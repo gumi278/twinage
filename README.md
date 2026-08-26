@@ -7,7 +7,9 @@ Twinage is a RAG agent system that accumulates fragments of past thought process
 This repository provides a minimal platform configuration, spanning from thought extraction and conversational UI to a decision node that judges using three values. The system adopts an independent microservices architecture, separated into "L1 (Infrastructure Layer)" responsible for pure record retrieval, and "L2 (Application Layer)" which utilizes those memories.
 
 - [Showcase (issues)](https://github.com/gumi278/twinage/issues)
-*Please note: The Twinage (AI) will occasionally provide initial responses to inquiries in the issues section. We appreciate your understanding.*
+
+> [!NOTE]
+> Please note: The Twinage (AI) will occasionally provide initial responses to inquiries in the issues section. We appreciate your understanding.
 
 ---
 
@@ -106,12 +108,17 @@ Once extraction is complete, update the database using the `indexer`.
 
 > [!WARNING]
 > **Notes on Building Your Own Twinage**
+> 
 > If you execute the registration as-is, your personal thoughts will be mixed into the same database as the "Official Twinage FAQ (sample data)" created in the Quick Start.
 > If you wish to create a completely personal thought space, please switch the database using one of the following methods:
+> 
 > **Method A: Separate the Save Location (Recommended)**
+> 
 > Add an environment variable to the `.env` file and specify the directory for your personal database.
 > `TWINAGE_DB_DIR=./data/MY_DATABASE`
+>
 > **Method B: Discard the Samples**
+> 
 > If the sample data is unnecessary, delete the entire created `./data/DATABASE` folder before running.
 
 After preparing the environment, index your data with the following command.
