@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "twinage"
-dynamic = ["version"]
+version = "0.1.0a2"
 requires-python = ">=3.13"
 dependencies = [
     "chainlit>=2.11.1",
@@ -18,5 +18,13 @@ dependencies = [
     "httpx>=0.28.1",
 ]
 
-[tool.hatch.version]
-source = "vcs"
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/data",
+    "/HF",
+    "/FIRM",
+    "/.venv",
+    ".env",
+    "__pycache__",
+    "public.iml"
+]
