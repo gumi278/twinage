@@ -108,21 +108,15 @@ def execute_flat_search(query: str, collection, data_dir: str, top_k: int = 20, 
                     engrams = json.load(f)
                     for engram in engrams:
                         if str(engram.get("sequence")) == str(seq):
-                            ctx = f"【カテゴリ】: {engram.get('category', '-')}\n"
-                            ctx += f"【記録内容】: {engram.get('description', '詳細なし')}\n"
-                            for k, v in engram.items():
-                                if k not in ["sequence", "category", "description", "questions"] and not k.startswith("q_") and v:
-                                    ctx += f"[{k}]: {v}\n"
-                                    
+                            # 【変更】不要な文字列結合(ctx)の生成処理を削除
                             retrieved_items.append({
                                 "sequence": seq,
-                                "context": ctx,
-                                "raw_engram": engram
+                                "raw_engram": engram  # 生のJSON構造のみを返す
                             })
                             # ★ 重複管理セットに登録
                             seen_sequences.add(seq)
                             break
-                
+                                
                 # ★ 要求件数に達したら打ち切り
                 if len(retrieved_items) >= actual_top_k:
                     debug_logs.append(f"  🎯 ユニーク件数が {actual_top_k} 件に達したため走査を終了")

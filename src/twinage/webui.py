@@ -87,14 +87,17 @@ async def search_past_thoughts(query: str) -> str:
         current_step.output = debug_info + "\n\n結果: 関連する記憶は見つかりませんでした。"
         return "指定されたクエリに関連する過去の記録は見つかりませんでした。"
         
-    # L1側ですでに時系列(sequence)順に並んでいるので、そのまま結合する
-    sorted_contexts = [item["context"] for item in retrieved_items]
-    combined_text = "\n\n".join(sorted_contexts)
+    # 【変更】テキスト結合をやめ、"raw_engram"のリストをJSON文字列化する
+    raw_engrams = [item.get("raw_engram", {}) for item in retrieved_items]
+    json_output = json.dumps(raw_engrams, ensure_ascii=False, indent=2)
     
     seq_list = [item["sequence"] for item in retrieved_items]
-    current_step.output = debug_info + f"\n\n====================\n抽出したシーケンス: {seq_list}\n\n{combined_text}"
     
-    return combined_text
+    # WebUI上のステップ表示は人間向けにスッキリさせる（JSON出力全体を表示すると長すぎるため）
+    current_step.output = debug_info + f"\n\n====================\n抽出したシーケンス: {seq_list}\n(※LLMにはJSON形式の思考データを直接渡しました)"
+    
+    # ツールの戻り値として完全なJSON文字列をLLMへ渡す
+    return json_output
 
 tools = [{
     "type": "function",

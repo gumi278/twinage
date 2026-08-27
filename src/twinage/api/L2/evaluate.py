@@ -75,9 +75,8 @@ async def evaluate_endpoint(request: EvaluateRequest):
     if not items:
         memory_context = "関連する過去の記憶は見つかりませんでした。"
     else:
-        memory_context = "\n\n---\n\n".join(
-            [f"[Sequence: {item['sequence']}]\n{item['context']}" for item in items]
-        )
+        extracted_engrams = [item.get("raw_engram", {}) for item in items]
+        memory_context = json.dumps(extracted_engrams, ensure_ascii=False, indent=2)
 
     # 3. LLMプロンプトの構築
     system_prompt = """
