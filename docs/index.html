@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twinage - Interactive Demos</title>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --border-color: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent-color: #2563eb;
+      --accent-hover: #1d4ed8;
+      --card-bg: #ffffff;
+      --radius: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background-color: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 24px 20px;
+      text-align: center;
+    }
+
+    .brand-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .brand-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1000px;
+      width: 100%;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    /* Grid Layout */
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    /* Demo Card */
+    .demo-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      position: relative;
+    }
+
+    .demo-card.active:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
+      border-color: #cbd5e1;
+    }
+
+    .demo-card.disabled {
+      background-color: #fafbfc;
+      opacity: 0.85;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .badge.available {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+
+    .badge.coming-soon {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+    }
+
+    .card-description {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      line-height: 1.55;
+    }
+
+    /* Action Buttons */
+    .card-action {
+      margin-top: auto;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background-color 0.2s, color 0.2s;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-disabled {
+      background-color: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      cursor: not-allowed;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 20px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background-color: var(--bg-primary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 class="brand-title">Twinage</h1>
+    <p class="brand-subtitle">Interactive Web Demos</p>
+  </header>
+
+  <main>
+    <h2 class="section-title">デモ一覧</h2>
+
+    <div class="demo-grid">
+      <!-- 1. Sample Demo -->
+      <div class="demo-card active">
+        <div>
+          <div class="card-header">
+            <h3 class="card-title">Sample Demo</h3>
+            <span class="badge available">利用可能</span>
+          </div>
+          <p class="card-description">
+            サンプル思考データ（20260909-01.json）と Gemini Function Calling（all_past_thoughts）を利用したクライアント対話UIデモです。
+          </p>
+        </div>
+        <div class="card-action">
+          <a href="./sample-demo/" class="btn btn-primary">デモを開く &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 2. Extract Demo -->
+      <div class="demo-card disabled">
+        <div>
+          <div class="card-header">
+            <h3 class="card-title">Extract Demo</h3>
+            <span class="badge coming-soon">準備中</span>
+          </div>
+          <p class="card-description">
+            思考ログや各種データソースからのエングラム（思考の軌跡）抽出プロセスを体験できるデモです。
+          </p>
+        </div>
+        <div class="card-action">
+          <span class="btn btn-disabled">近日公開</span>
+        </div>
+      </div>
+
+      <!-- 3. User Demo -->
+      <div class="demo-card disabled">
+        <div>
+          <div class="card-header">
+            <h3 class="card-title">User Demo</h3>
+            <span class="badge coming-soon">準備中</span>
+          </div>
+          <p class="card-description">
+            ユーザー自身の思考データを直接読み込み、パーソナライズされた対話と探索を行うデモです。
+          </p>
+        </div>
+        <div class="card-action">
+          <span class="btn btn-disabled">近日公開</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Twinage Project (MIT License)</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,25 @@
+/.env
+# 環境変数の定義
+# ユーザー環境のgit混入を抑止する。
+
+
+/HF/
+# twinage独自のhuggingfaceのcache置き場
+# ユーザー環境のgit混入を抑止する。
+
+
+/data/DATABASE/
+# twinage用のデータベース置き場
+# ユーザー環境のgit混入を抑止する。
+
+
+/.chainlit/
+# twinageのwebui(chainlit)の設定置き場
+# ユーザー環境のgit混入を抑止する。
+
+
+/data/engrams/*
+!/data/engrams/samples/
+# twinageのengram置き場
+# /data/engrams/はユーザー環境として想定しているので、git混入を抑止する。
+# /data/engrams/samples/はサンプルデータを置くので除外しない。
