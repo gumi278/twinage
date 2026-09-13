@@ -64,6 +64,42 @@
       padding: 0 20px;
     }
 
+    /* About Section */
+    .about-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 36px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .about-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .about-description {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+
+    .about-description:last-child {
+      margin-bottom: 0;
+    }
+
+    .about-description strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
     .section-title {
       font-size: 1.25rem;
       font-weight: 700;
@@ -182,6 +218,17 @@
       color: var(--text-muted);
       background-color: var(--bg-primary);
     }
+
+    footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    footer a:hover {
+      color: var(--accent-color);
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -191,6 +238,16 @@
   </header>
 
   <main>
+    <section class="about-card">
+      <h2 class="about-title">思考プロセスを再現する「認知RAG」の検証・体験環境</h2>
+      <p class="about-description">
+        形式的なマニュアルを検索する「事実RAG」に対し、Twinageは日々の雑多な対話ログから「なぜその判断に至ったのか」という<strong>思考の軌跡（13の成分）を抽出し、AIに文脈（Context）を形成させるメタフレームワーク</strong>です。
+      </p>
+      <p class="about-description">
+        このデモ環境は、原文の機密性を保ったまま思考の骨格を扱う仕組みと、過去の経緯や制約を考慮した「納得感のある見解生成」の挙動を技術的に検証・体験いただくために公開されています。
+      </p>
+    </section>
+
     <h2 class="section-title">デモ一覧</h2>
 
     <div class="demo-grid">
@@ -211,18 +268,18 @@
       </div>
 
       <!-- 2. Extract Demo -->
-      <div class="demo-card disabled">
+      <div class="demo-card active">
         <div>
           <div class="card-header">
             <h3 class="card-title">Extract Demo</h3>
-            <span class="badge coming-soon">準備中</span>
+            <span class="badge available">利用可能</span>
           </div>
           <p class="card-description">
-            思考ログや各種データソースからのエングラム（思考の軌跡）抽出プロセスを体験できるデモです。
+            Obsidian Web Clipper の Markdown ログから思考の成分分離（Engram Extraction）を行い、EngramSchema 形式の JSON を生成・ダウンロードするデモです。
           </p>
         </div>
         <div class="card-action">
-          <span class="btn btn-disabled">近日公開</span>
+          <a href="./extract-demo/" class="btn btn-primary">デモを開く &rarr;</a>
         </div>
       </div>
 
@@ -245,7 +302,10 @@
   </main>
 
   <footer>
-    <p>&copy; 2026 Twinage Project (MIT License)</p>
+    <p>
+      &copy; 2026 Twinage Project (MIT License) &middot; 
+      <a href="https://github.com/gumi278/twinage" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+    </p>
   </footer>
 </body>
 </html>
