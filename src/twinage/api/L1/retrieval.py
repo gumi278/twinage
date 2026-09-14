@@ -1,8 +1,6 @@
 import os
 import json
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 
 import chromadb
@@ -11,51 +9,61 @@ import chromadb.utils.embedding_functions as embedding_functions
 load_dotenv()
 
 # ==========================================
-# グローバル設定と初期化
+# グローバル設定と遅延初期化
 # ==========================================
 DB_DIR = os.environ.get("TWINAGE_DB_DIR", "./data/DATABASE")
 DATA_DIR = os.environ.get("TWINAGE_DATA_DIR", "./data/engrams")
 EMB_URL = os.environ.get("TWINAGE_EMB_URL", None)
 EMB_MODEL = os.environ.get("TWINAGE_EMB_MODEL", "text-embedding-3-small")
 
-app = FastAPI(title="Twinage Retrieval API", version="1.2.0")
+_collection = None
 
-chroma_client = None
-collection = None
 
-@app.on_event("startup")
-async def startup_event():
-    global chroma_client, collection
-    
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    emb_api_key = "dummy-key" if EMB_URL else openai_key
-    
-    if not emb_api_key:
-        raise RuntimeError("APIキーが設定されていません。")
+def get_collection():
+    """
+    ChromaDBコレクションを取得する（シングルトン / 遅延評価）
+    """
+    global _collection
+    if _collection is None:
+        openai_key = os.environ.get("OPENAI_API_KEY")
+        emb_api_key = openai_key or "dummy-key"
 
-    emb_fn = embedding_functions.OpenAIEmbeddingFunction(
-        api_key=emb_api_key,
-        api_base=EMB_URL,
-        model_name=EMB_MODEL
-    )
-    
-    chroma_client = chromadb.PersistentClient(path=DB_DIR)
-    try:
-        collection = chroma_client.get_collection(name="twinage_engrams", embedding_function=emb_fn)
-    except Exception as e:
-        raise RuntimeError(f"ChromaDBが見つかりません: {e}")
+        emb_fn = embedding_functions.OpenAIEmbeddingFunction(
+            api_key=emb_api_key,
+            api_base=EMB_URL,
+            model_name=EMB_MODEL
+        )
+        
+        chroma_client = chromadb.PersistentClient(path=DB_DIR)
+        try:
+            _collection = chroma_client.get_collection(name="twinage_engrams", embedding_function=emb_fn)
+        except Exception as e:
+            raise RuntimeError(f"ChromaDBのコレクション取得に失敗しました: {e}")
+            
+    return _collection
+
 
 # ==========================================
-# スキーマ定義
+# ツール定義 (Function Calling用)
 # ==========================================
-class SearchQuery(BaseModel):
-    query: str
-    top_k: int = Field(default=5, ge=1, description="取得件数（0以下はエラー、81以上は80に丸められます）")
-    category: Optional[str] = Field(default=None, description="思考カテゴリでの絞り込み")
+SEARCH_PAST_THOUGHTS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_past_thoughts",
+        "description": "記録をベクトル検索します。キーワードの羅列ではなく、必ず自然な文章（疑問文など）で検索クエリを構成してください。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "自然な文章で記述された検索クエリ"
+                }
+            },
+            "required": ["query"],
+        },
+    }
+}
 
-class RetrievalResult(BaseModel):
-    items: List[Dict[str, Any]]
-    debug_info: str
 
 # ==========================================
 # 探索コアロジック
@@ -109,7 +117,7 @@ def execute_flat_search(query: str, collection, data_dir: str, top_k: int = 20, 
                     for engram in engrams:
                         if str(engram.get("sequence")) == str(seq):
                             
-                            # --- 【追加】データのクレンジングと変換 ---
+                            # --- データのクレンジングと変換 ---
                             # 1. "q_" で始まるキーと "questions" を除外した新しい辞書を作成
                             filtered_engram = {
                                 k: v for k, v in engram.items() 
@@ -119,18 +127,18 @@ def execute_flat_search(query: str, collection, data_dir: str, top_k: int = 20, 
                             # 2. sequence (例: 202608150100511) から日付を生成して追加
                             seq_str = str(seq)
                             if len(seq_str) >= 8:
-                                # 先頭8文字をスライスして yyyy-mm-dd 形式にフォーマット
                                 date_str = f"{seq_str[:4]}-{seq_str[4:6]}-{seq_str[6:8]}"
                                 filtered_engram["date"] = date_str
-                            # ----------------------------------------
+                            # ----------------------------------
 
                             retrieved_items.append({
                                 "sequence": seq,
-                                "raw_engram": filtered_engram  # 綺麗になった辞書を渡す
+                                "raw_engram": filtered_engram
                             })
                             # ★ 重複管理セットに登録
                             seen_sequences.add(seq)
                             break
+
                 # ★ 要求件数に達したら打ち切り
                 if len(retrieved_items) >= actual_top_k:
                     debug_logs.append(f"  🎯 ユニーク件数が {actual_top_k} 件に達したため走査を終了")
@@ -141,43 +149,21 @@ def execute_flat_search(query: str, collection, data_dir: str, top_k: int = 20, 
         
     return retrieved_items, "\n".join(debug_logs)
 
-# ==========================================
-# エンドポイント
-# ==========================================
-@app.post("/v1/retrieval", response_model=RetrievalResult)
-async def search_endpoint(request: SearchQuery):
-    retrieved_items, debug_text = execute_flat_search(
-        query=request.query,
+
+def search_engrams(query: str, top_k: int = 5, category: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Twinageの記憶データベース（ChromaDB）を検索し、シーケンス番号順のアイテムリストを返す。
+    
+    戻り値:
+        List[Dict[str, Any]]: 各要素は {"sequence": int, "raw_engram": dict}
+    """
+    collection = get_collection()
+    retrieved_items, _ = execute_flat_search(
+        query=query,
         collection=collection,
         data_dir=DATA_DIR,
-        top_k=request.top_k,
-        category=request.category
+        top_k=top_k,
+        category=category
     )
-    
     retrieved_items.sort(key=lambda x: x["sequence"])
-    
-    return RetrievalResult(
-        items=retrieved_items,
-        debug_info=debug_text
-    )
-
-if __name__ == "__main__":
-    import os
-    import uvicorn
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
-    host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
-    port = int(os.getenv("TWINAGE_L1_PORT", 8082))
-    reload_str = os.getenv("TWINAGE_RELOAD", "True").lower()
-    is_reload = reload_str in ("true", "1", "t", "yes")
-
-    print(f"[Twinage L1] Starting Retrieval API on http://{host}:{port} (Reload: {is_reload})")
-
-    uvicorn.run(
-        "twinage.api.L1.retrieval:app", 
-        host=host, 
-        port=port, 
-        reload=is_reload
-    )
+    return retrieved_items

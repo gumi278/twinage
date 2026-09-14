@@ -1,11 +1,12 @@
 import os
 import json
-import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Literal, List, Optional
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
+
+from twinage.api.L1.retrieval import search_engrams
 
 load_dotenv()
 
@@ -29,15 +30,11 @@ class EvaluateResponse(BaseModel):
 # ==========================================
 app = FastAPI(title="Twinage Evaluate API", version="1.0.0")
 
-l1_host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
-l1_port = os.getenv("TWINAGE_L1_PORT", "8082")
-retrieval_url = f"http://{l1_host}:{l1_port}/v1/retrieval"
-
 LLM_URL = os.environ.get("TWINAGE_LLM_URL", None)
 LLM_MODEL = os.environ.get("TWINAGE_LLM_MODEL", "gpt-4o")
 
 openai_key = os.environ.get("OPENAI_API_KEY")
-llm_api_key = "dummy-key" if LLM_URL else openai_key
+llm_api_key = openai_key or "dummy-key"
 llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=LLM_URL)
 
 # ==========================================
@@ -46,32 +43,27 @@ llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=LLM_URL)
 @app.post("/v1/evaluate", response_model=EvaluateResponse)
 async def evaluate_endpoint(request: EvaluateRequest):
     """
-    外部からの提案を受け取り、内部のRetrieval APIを叩いて記憶を引き出し、
+    外部からの提案を受け取り、L1記憶検索モジュールを直接呼び出して記憶を引き出し、
     LLMによる3値判定(ACCEPT/REJECT/UNKNOWN)を下して返却します。
     """
     print(f"\n🔄 [Evaluate API] 判定リクエスト受信: {request.proposal[:40]}...")
     
-    # 1. 内部のRetrieval APIへのリクエスト構築
+    # 1. 検索クエリの構築
     search_query = request.proposal
     if request.context_info:
         search_query += f"\n背景: {request.context_info}"
-        
-    payload = {"query": search_query, "top_k": 15}
-    if request.category_filter:
-        payload["category"] = request.category_filter
 
-    # 2. 内部HTTP通信（多段API）
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(retrieval_url, json=payload, timeout=10.0)
-            response.raise_for_status()
-            api_result = response.json()
-        except Exception as e:
-            print(f"❌ [Evaluate API] 内部検索API通信エラー: {e}")
-            raise HTTPException(status_code=500, detail=f"内部記憶ノードへのアクセスに失敗しました: {e}")
+    # 2. L1モジュールの直接呼び出し（インメモリ連携）
+    try:
+        items = search_engrams(
+            query=search_query,
+            top_k=15,
+            category=request.category_filter
+        )
+    except Exception as e:
+        print(f"❌ [Evaluate API] 記憶検索エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"内部記憶ノードへのアクセスに失敗しました: {e}")
 
-    items = api_result.get("items", [])
-    
     if not items:
         memory_context = "関連する過去の記憶は見つかりませんでした。"
     else:
@@ -80,7 +72,7 @@ async def evaluate_endpoint(request: EvaluateRequest):
 
     # 3. LLMプロンプトの構築
     system_prompt = """
-あなたはTwinageの「判定ノード」です。提供された過去の記憶（Engram）のみに基づき、以下のJSONフォーマットで判定を下してください。
+あなたTwinageの「判定ノード」です。提供された過去の記憶（Engram）のみに基づき、以下のJSONフォーマットで判定を下してください。
 余計なテキストは一切含めず、純粋なJSONオブジェクトのみを出力してください。
 
 【出力フォーマット (JSON)】
@@ -131,7 +123,6 @@ if __name__ == "__main__":
     is_reload = reload_str in ("true", "1", "t", "yes")
 
     print(f"[Twinage L2] Starting Evaluate API on http://{l2_host}:{l2_port}/v1/evaluate")
-    print(f"[Twinage L2] Target L1 (Retrieval) URL: {retrieval_url}")
     print(f"[Twinage L2] Reload mode: {is_reload}")
 
     uvicorn.run(

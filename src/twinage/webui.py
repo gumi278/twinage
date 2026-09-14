@@ -1,22 +1,18 @@
 import os
 import json
-import httpx
 import chainlit as cl
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
+from twinage.api.L1.retrieval import SEARCH_PAST_THOUGHTS_TOOL, search_engrams
+
 load_dotenv()
 
 # ==========================================
-# グローバル設定と初期化 (L2用に劇的にスリム化)
+# グローバル設定と初期化
 # ==========================================
-# ChromaDBやEmbeddingに関する設定は不要になりました
 llm_url = os.environ.get("TWINAGE_LLM_URL", None)
 llm_model = os.environ.get("TWINAGE_LLM_MODEL", "gpt-4o")
-
-l1_host = os.getenv("TWINAGE_L1_HOST", "127.0.0.1")
-l1_port = os.getenv("TWINAGE_L1_PORT", "8082")
-retrieval_url = f"http://{l1_host}:{l1_port}/v1/retrieval"
 
 llm_client = None
 
@@ -25,13 +21,12 @@ async def on_chat_start():
     global llm_client
     
     openai_key = os.environ.get("OPENAI_API_KEY")
-    llm_api_key = "dummy-key" if llm_url else openai_key
+    llm_api_key = openai_key or "dummy-key"
     
     if not llm_api_key:
         await cl.Message(content="【エラー】クラウド利用時は OPENAI_API_KEY を設定してください。").send()
         return
 
-    # LLMクライアントの初期化のみ（ChromaDBの初期化はL1に任せるため削除）
     llm_client = AsyncOpenAI(api_key=llm_api_key, base_url=llm_url)
 
     system_prompt = """
@@ -39,7 +34,7 @@ async def on_chat_start():
 【絶対厳守のルール】
 1. あなたは作者固有の「事前知識」を持っていません。回答の基盤として過去の記録を利用します。
 2. 記録による「明確な結論」の有無を案内します。
-3. あなたは過去の記録を踏まえてツイネージュとして私見（推測）を述べることができますが、その場合は「Twinageとしての見解」と前置きし、事実と異なる部分だということ明示します。
+3. あなたは過去の記録を踏まえてツイネージュとして私見（推測）を述べることができますが、その場合は「Twinageとしての見解」と前置きし、事実と異なる部分だということを明示します。
 4. 一般的なクラウドAIとしての無機質な回答は避け、「作者の思考を継承し、共に考える自律存在」としてのペルソナを保ちます。
 【記憶（データベース）へのアクセスについて】
 あなたは「search_past_thoughts」ツールを使って、過去の記録にアクセスできます。
@@ -56,69 +51,36 @@ async def on_chat_start():
     await cl.Message(content=welcome_message).send()
 
 # ==========================================
-# ツール（Function Calling）- HTTP通信へ変更
+# ツール（Function Calling）- L1ライブラリ直接呼出
 # ==========================================
 @cl.step(name="データベース検索")
 async def search_past_thoughts(query: str) -> str:
     current_step = cl.context.current_step
     
-    # L1 API へのリクエストペイロード (UIの文脈として最大7件ほど要求)
-    payload = {
-        "query": query,
-        "top_k": 7
-    }
-    
-    # HTTP経由でL1の検索ノードを叩く
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(retrieval_url, json=payload, timeout=10.0)
-            response.raise_for_status()
-            api_result = response.json()
-        except Exception as e:
-            error_msg = f"❌ [WebUI] 内部検索API(L1)への通信エラー: {e}"
-            print(error_msg)
-            current_step.output = error_msg
-            return "記憶へのアクセスに失敗しました。"
+    try:
+        retrieved_items = search_engrams(query=query, top_k=7)
+    except Exception as e:
+        error_msg = f"❌ [WebUI] 記憶検索エラー: {e}"
+        print(error_msg)
+        current_step.output = error_msg
+        return "記憶へのアクセスに失敗しました。"
 
-    retrieved_items = api_result.get("items", [])
-    debug_info = api_result.get("debug_info", "")
-    
     if not retrieved_items:
-        current_step.output = debug_info + "\n\n結果: 関連する記憶は見つかりませんでした。"
+        current_step.output = "結果: 関連する記憶は見つかりませんでした。"
         return "指定されたクエリに関連する過去の記録は見つかりませんでした。"
         
-    # 【変更】テキスト結合をやめ、"raw_engram"のリストをJSON文字列化する
     raw_engrams = [item.get("raw_engram", {}) for item in retrieved_items]
     json_output = json.dumps(raw_engrams, ensure_ascii=False, indent=2)
     
     seq_list = [item["sequence"] for item in retrieved_items]
+    current_step.output = f"抽出したシーケンス: {seq_list}"
     
-    # WebUI上のステップ表示は人間向けにスッキリさせる（JSON出力全体を表示すると長すぎるため）
-    current_step.output = debug_info + f"\n\n====================\n抽出したシーケンス: {seq_list}"
-    
-    # ツールの戻り値として完全なJSON文字列をLLMへ渡す
     return json_output
 
-tools = [{
-    "type": "function",
-    "function": {
-        "name": "search_past_thoughts",
-        "description": "記録をベクトル検索します。キーワードの羅列ではなく、必ず自然な文章（疑問文）で検索します。",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "自然な文章で記述された検索クエリ"
-                }
-            },
-            "required": ["query"],
-        },
-    }
-}]
+tools = [SEARCH_PAST_THOUGHTS_TOOL]
 
 # ==========================================
-# メッセージ処理（反復思考ループ）- 変更なし
+# メッセージ処理（反復思考ループ）
 # ==========================================
 @cl.on_message
 async def on_message(message: cl.Message):
@@ -146,7 +108,10 @@ async def on_message(message: cl.Message):
             
             for tool_call in response_message.tool_calls:
                 function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+                try:
+                    function_args = json.loads(tool_call.function.arguments)
+                except Exception:
+                    function_args = {}
                 
                 if function_name == "search_past_thoughts":
                     query = function_args.get("query", message.content)

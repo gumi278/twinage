@@ -23,3 +23,5 @@
 # twinageのengram置き場
 # /data/engrams/はユーザー環境として想定しているので、git混入を抑止する。
 # /data/engrams/samples/はサンプルデータを置くので除外しない。
+
+__pycache__
