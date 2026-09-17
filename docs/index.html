@@ -171,8 +171,25 @@
     .card-description {
       font-size: 0.9rem;
       color: var(--text-secondary);
-      margin-bottom: 24px;
+      margin-bottom: 12px;
       line-height: 1.55;
+    }
+
+    .card-features {
+      list-style-type: disc;
+      padding-left: 20px;
+      margin-bottom: 24px;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    .card-features li {
+      margin-bottom: 6px;
+    }
+
+    .card-features li:last-child {
+      margin-bottom: 0;
     }
 
     /* Action Buttons */
@@ -239,65 +256,83 @@
 
   <main>
     <section class="about-card">
-      <h2 class="about-title">思考プロセスを再現する「認知RAG」の検証・体験環境</h2>
+      <h2 class="about-title">ここは何？</h2>
       <p class="about-description">
-        形式的なマニュアルを検索する「事実RAG」に対し、Twinageは日々の雑多な対話ログから「なぜその判断に至ったのか」という<strong>思考の軌跡（13の成分）を抽出し、AIに文脈（Context）を形成させるメタフレームワーク</strong>です。
+        ここにあるチャット環境のデモは、ツイネージュの挙動を技術的に検証・体験いただくために作成したのですが、
+        ドキュメントとして振る舞ってもらうことで説明コストを削減する試みも兼ねることにしました。
       </p>
       <p class="about-description">
-        このデモ環境は、原文の機密性を保ったまま思考の骨格を扱う仕組みと、過去の経緯や制約を考慮した「納得感のある見解生成」の挙動を技術的に検証・体験いただくために公開されています。
+        それぞれのデモはOpenAI互換のクラウドAPI利用を前提としていますが、<code>git clone</code>で持ってくればローカルLLMを利用できます。
+        できますが、簡易版実装のため、トークン消費が激しいです。
+        少なく見積もっても<code>200K</code>ほどトークンを消費します（当然会話を続けると累積します）。
+        ローカルLLMで実行する場合は、消耗を見越した context window 設定が必要になります。
+      </p>
+      <p class="about-description">
+        応答の質にはLLMの賢さが大きく作用します。
+        特にデモ版（簡易実装）はノイズが多いため、各社の最新モデルの利用を推奨します。
       </p>
     </section>
 
     <h2 class="section-title">デモ一覧</h2>
 
     <div class="demo-grid">
-      <!-- 1. Sample Demo -->
       <div class="demo-card active">
         <div>
           <div class="card-header">
-            <h3 class="card-title">Sample Demo</h3>
+            <h3 class="card-title">ツイネージュって何？</h3>
             <span class="badge available">利用可能</span>
           </div>
           <p class="card-description">
-            サンプル思考データ（20260909-01.json）と Gemini Function Calling（all_past_thoughts）を利用したクライアント対話UIデモです。
+            AIアシスタントが対応します。
           </p>
+          <ul class="card-features">
+            <li>Twinageの基本思想・認知RAGの概要</li>
+            <li>13の思考成分と文脈形成の仕組み</li>
+          </ul>
         </div>
         <div class="card-action">
-          <a href="./sample-demo/" class="btn btn-primary">デモを開く &rarr;</a>
+          <a href="./twinage-concept/" class="btn btn-primary">開く &rarr;</a>
         </div>
       </div>
-
-      <!-- 2. Extract Demo -->
+      
       <div class="demo-card active">
         <div>
           <div class="card-header">
-            <h3 class="card-title">Extract Demo</h3>
+            <h3 class="card-title">動作要件について</h3>
             <span class="badge available">利用可能</span>
           </div>
           <p class="card-description">
-            Obsidian Web Clipper の Markdown ログから思考の成分分離（Engram Extraction）を行い、EngramSchema 形式の JSON を生成・ダウンロードするデモです。
+            AIアシスタントが対応します。
           </p>
+          <ul class="card-features">
+            <li>必要なハードウェア・GPUスペック</li>
+            <li>ソフトウェア環境・ローカルLLM設定</li>
+          </ul>
         </div>
         <div class="card-action">
-          <a href="./extract-demo/" class="btn btn-primary">デモを開く &rarr;</a>
+          <a href="./twinage-require/" class="btn btn-primary">開く &rarr;</a>
         </div>
       </div>
 
-      <!-- 3. User Demo -->
       <div class="demo-card disabled">
         <div>
           <div class="card-header">
-            <h3 class="card-title">User Demo</h3>
+            <h3 class="card-title">L2関連</h3>
             <span class="badge coming-soon">準備中</span>
           </div>
           <p class="card-description">
-            ユーザー自身の思考データを直接読み込み、パーソナライズされた対話と探索を行うデモです。
+            AIアシスタントが対応します。
           </p>
+          <ul class="card-features">
+            <li>Antigravityへの評価ノード設定と使い方</li>
+            <li>AIRIのProxy設定と使い方</li>
+          </ul>
         </div>
         <div class="card-action">
-          <span class="btn btn-disabled">近日公開</span>
+          <a href="#" class="btn btn-disabled" onclick="return false;">準備中</a>
         </div>
       </div>
+      
     </div>
   </main>
 

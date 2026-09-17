@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Twinage WebUI - HW/SW要件</title>
+  <link rel="stylesheet" href="./style.css">
+  
+  <!-- Libraries (MIT / Compatible) -->
+  <!-- Marked: Markdown parser (MIT) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- DOMPurify: HTML sanitizer (Apache 2.0 / MPL 2.0) -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+  <!-- Highlight.js: Code syntax highlighting (BSD-3-Clause) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+</head>
+<body>
+  <!-- Header & API Settings -->
+  <header class="app-header">
+    <div class="brand">
+      <a href="../" class="back-link" title="一覧へ戻る">&larr; 一覧</a>
+      <span class="brand-title">Twinage</span>
+      <span class="brand-badge">HW/SW要件</span>
+    </div>
+
+    <div class="api-settings">
+      <div class="setting-group">
+        <label for="base-url-input">Base URL:</label>
+        <input 
+          type="text" 
+          id="base-url-input" 
+          class="setting-input" 
+          value="https://api.openai.com/v1" 
+          placeholder="https://api.openai.com/v1" 
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="setting-group">
+        <label for="model-name-input">モデル名:</label>
+        <input 
+          type="text" 
+          id="model-name-input" 
+          class="setting-input" 
+          value="gpt-4o-mini" 
+          placeholder="gpt-4o-mini" 
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="setting-group">
+        <label for="api-key-input">APIキー:</label>
+        <input 
+          type="password" 
+          id="api-key-input" 
+          class="setting-input" 
+          placeholder="API Key を入力" 
+          autocomplete="off"
+        >
+      </div>
+    </div>
+
+    <!-- Security & Privacy Policy Banner -->
+    <div class="policy-banner">
+      <svg width="14" height="14" viewBox="0 0 24 24">
+        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/>
+      </svg>
+      <span>【セキュリティポリシー】入力されたAPIキーはブラウザのメモリ内でのみ使用され、ストレージ（LocalStorage等）への保存や外部サーバーへの送信は一切行われません。ソースコードは本ページまたはGitHub上でどなたでも確認可能です。</span>
+    </div>
+  </header>
+
+  <!-- Chat Container -->
+  <main class="chat-container">
+    <div id="messages-area" class="messages-area">
+      <!-- Chat messages will be dynamically rendered here -->
+    </div>
+
+    <div class="input-container">
+      <div class="input-box">
+        <textarea 
+          id="chat-input" 
+          class="chat-textarea" 
+          placeholder="メッセージを入力... (Enterで送信, Shift+Enterで改行)" 
+          rows="1"
+        ></textarea>
+        <button id="send-btn" class="send-btn" title="送信" aria-label="送信">
+          <svg viewBox="0 0 24 24">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

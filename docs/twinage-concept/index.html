@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Twinage WebUI - Sample Demo</title>
+  <title>Twinage WebUI - ツイネージュって何？</title>
   <link rel="stylesheet" href="./style.css">
   
   <!-- Libraries (MIT / Compatible) -->
@@ -19,17 +19,34 @@
   <!-- Header & API Settings -->
   <header class="app-header">
     <div class="brand">
-      <a href="../" class="back-link" title="デモ一覧へ戻る">&larr; デモ一覧</a>
+      <a href="../" class="back-link" title="一覧へ戻る">&larr; 一覧</a>
       <span class="brand-title">Twinage</span>
-      <span class="brand-badge">Sample Demo</span>
+      <span class="brand-badge">ツイネージュって何？</span>
     </div>
 
     <div class="api-settings">
       <div class="setting-group">
-        <label for="provider-select">プロバイダー:</label>
-        <select id="provider-select" class="setting-select">
-          <option value="gemini" selected>Gemini (gemini-flash-latest)</option>
-        </select>
+        <label for="base-url-input">Base URL:</label>
+        <input 
+          type="text" 
+          id="base-url-input" 
+          class="setting-input" 
+          value="https://api.openai.com/v1" 
+          placeholder="https://api.openai.com/v1" 
+          autocomplete="off"
+        >
+      </div>
+
+      <div class="setting-group">
+        <label for="model-name-input">モデル名:</label>
+        <input 
+          type="text" 
+          id="model-name-input" 
+          class="setting-input" 
+          value="gpt-4o-mini" 
+          placeholder="gpt-4o-mini" 
+          autocomplete="off"
+        >
       </div>
 
       <div class="setting-group">
@@ -38,7 +55,7 @@
           type="password" 
           id="api-key-input" 
           class="setting-input" 
-          placeholder="Gemini API Key を入力" 
+          placeholder="API Key を入力" 
           autocomplete="off"
         >
       </div>

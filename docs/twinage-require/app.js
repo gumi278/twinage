@@ -4,9 +4,13 @@
  */
 
 // ==========================================
-// 1. システムプロンプト定義
+// 1. システムプロンプト定義 & 設定定数
 // ==========================================
-const SYSTEM_PROMPT = `あなたは作者の思考の鏡であり、自律した認知の拡張体である『ツイネージュ』のAIエージェントです。
+const DATA_FILES = [
+  './20260909-01.json'
+];
+
+const SYSTEM_PROMPT = `あなたは作者（author）の思考の鏡であり、自律した認知の拡張体である『ツイネージュ』のAIエージェントです。
 【絶対厳守のルール】
 1. あなたは作者固有の「事前知識」を持っていません。回答の基盤として過去の記録を利用します。
 2. 記録による「明確な結論」の有無を案内します。
@@ -15,8 +19,8 @@ const SYSTEM_PROMPT = `あなたは作者の思考の鏡であり、自律した
 【記録へのアクセスについて】
 あなたは「all_past_thoughts」ツールを使って、過去の全記録にアクセスできます。`;
 
-const WELCOME_MESSAGE = `サンプルデータのツイネージュです。
-現在のサンプルデータは次のとおりです：
+const WELCOME_MESSAGE = `ツイネージュの単一テーマ簡易実装です。
+現在のテーマは次のとおりです：
 
 - ツイネージュのHW/SW要件
 
@@ -39,11 +43,19 @@ let cachedRawData = null;
  */
 async function executeAllPastThoughts() {
   if (!cachedRawData) {
-    const response = await fetch('./20260909-01.json');
-    if (!response.ok) {
-      throw new Error(`データファイルの取得に失敗しました: ${response.status} ${response.statusText}`);
-    }
-    cachedRawData = await response.json();
+    const responses = await Promise.all(
+      DATA_FILES.map(async (file) => {
+        const response = await fetch(file);
+        if (!response.ok) {
+          throw new Error(`データファイル（${file}）の取得に失敗しました: ${response.status} ${response.statusText}`);
+        }
+        return await response.json();
+      })
+    );
+
+    const merged = responses.flat();
+    merged.sort((a, b) => (Number(a.sequence) || 0) - (Number(b.sequence) || 0));
+    cachedRawData = merged;
   }
 
   const cleanedItems = cachedRawData.map((item) => {
@@ -75,55 +87,53 @@ async function executeAllPastThoughts() {
   };
 }
 
-const TOOL_DECLARATIONS = {
-  gemini: [
-    {
+const TOOLS = [
+  {
+    type: 'function',
+    function: {
       name: 'all_past_thoughts',
       description: '過去の全記録を取得します。回答の根拠として利用します。',
       parameters: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {}
       }
     }
-  ]
-};
+  }
+];
 
 // ==========================================
-// 3. プロバイダー別 API クライアント
+// 3. OpenAI互換 API クライアント
 // ==========================================
-class GeminiProvider {
-  constructor(apiKey) {
-    this.apiKey = apiKey;
-    this.modelName = 'gemini-flash-latest';
-    this.baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent`;
+class OpenAICompatibleProvider {
+  constructor(baseUrl, apiKey, modelName) {
+    this.baseUrl = (baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    this.apiKey = apiKey || '';
+    this.modelName = modelName || 'gpt-4o-mini';
   }
 
-  async sendRequest(contents, toolConfig = null) {
-    const url = `${this.baseUrl}?key=${encodeURIComponent(this.apiKey)}`;
+  async sendChatCompletion(messages, options = {}) {
+    const url = `${this.baseUrl}/chat/completions`;
     const payload = {
-      systemInstruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      contents: contents,
-      tools: [
-        {
-          functionDeclarations: TOOL_DECLARATIONS.gemini
-        }
+      model: this.modelName,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...messages
       ],
-      generationConfig: {
-        temperature: 0.1
-      }
+      tools: TOOLS,
+      temperature: 0.1,
+      ...options
     };
 
-    if (toolConfig) {
-      payload.toolConfig = toolConfig;
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify(payload)
     });
 
@@ -135,7 +145,7 @@ class GeminiProvider {
       } catch (e) {
         errorDetail = await response.text();
       }
-      throw new Error(`Gemini API エラー (${response.status}): ${errorDetail}`);
+      throw new Error(`API エラー (${response.status}): ${errorDetail}`);
     }
 
     return await response.json();
@@ -147,9 +157,11 @@ class GeminiProvider {
 // ==========================================
 class ChatApp {
   constructor() {
+    this.baseUrl = 'https://api.openai.com/v1';
+    this.modelName = 'gpt-4o-mini';
     this.apiKey = '';
-    this.provider = 'gemini';
-    this.geminiContents = []; // 会話履歴（Gemini REST API contents 形式）
+    this.messages = []; // 会話履歴（OpenAI Chat Completions messages 形式）
+    this.hasLoadedThoughts = false; // 思考データのロード済みフラグ
     this.isProcessing = false;
 
     this.initElements();
@@ -158,21 +170,36 @@ class ChatApp {
   }
 
   initElements() {
-    this.providerSelect = document.getElementById('provider-select');
+    this.baseUrlInput = document.getElementById('base-url-input');
+    this.modelNameInput = document.getElementById('model-name-input');
     this.apiKeyInput = document.getElementById('api-key-input');
     this.messagesContainer = document.getElementById('messages-area');
     this.chatTextarea = document.getElementById('chat-input');
     this.sendButton = document.getElementById('send-btn');
+
+    if (this.baseUrlInput) this.baseUrl = this.baseUrlInput.value.trim() || 'https://api.openai.com/v1';
+    if (this.modelNameInput) this.modelName = this.modelNameInput.value.trim() || 'gpt-4o-mini';
+    if (this.apiKeyInput) this.apiKey = this.apiKeyInput.value.trim();
   }
 
   bindEvents() {
-    this.apiKeyInput.addEventListener('input', (e) => {
-      this.apiKey = e.target.value.trim();
-    });
+    if (this.baseUrlInput) {
+      this.baseUrlInput.addEventListener('input', (e) => {
+        this.baseUrl = e.target.value.trim();
+      });
+    }
 
-    this.providerSelect.addEventListener('change', (e) => {
-      this.provider = e.target.value;
-    });
+    if (this.modelNameInput) {
+      this.modelNameInput.addEventListener('input', (e) => {
+        this.modelName = e.target.value.trim();
+      });
+    }
+
+    if (this.apiKeyInput) {
+      this.apiKeyInput.addEventListener('input', (e) => {
+        this.apiKey = e.target.value.trim();
+      });
+    }
 
     // テキストエリアの自動伸縮
     this.chatTextarea.addEventListener('input', () => {
@@ -268,9 +295,22 @@ class ChatApp {
     const userText = this.chatTextarea.value.trim();
     if (!userText || this.isProcessing) return;
 
-    if (!this.apiKey) {
+    if (!this.baseUrl) {
+      alert('Base URLを入力してください。');
+      this.baseUrlInput?.focus();
+      return;
+    }
+
+    if (!this.modelName) {
+      alert('モデル名を入力してください。');
+      this.modelNameInput?.focus();
+      return;
+    }
+
+    const isLocal = this.baseUrl.includes('localhost') || this.baseUrl.includes('127.0.0.1');
+    if (!this.apiKey && !isLocal) {
       alert('APIキーを入力してください。\n（※APIキーは保存されず、ブラウザのメモリ内でのみ使用されます）');
-      this.apiKeyInput.focus();
+      this.apiKeyInput?.focus();
       return;
     }
 
@@ -282,24 +322,30 @@ class ChatApp {
     // ユーザーメッセージ描画
     this.appendUserMessage(userText);
 
-    // AI メッセージ枠とステップ表示要素の準備
+    // AI メッセージ枠の準備
     const { wrapper } = this.createBotMessageRow();
 
-    // 思考ステップ（アコーディオン）要素
-    const stepDetails = document.createElement('details');
-    stepDetails.className = 'tool-step';
-    stepDetails.open = true;
+    // 思考ステップ（アコーディオン）要素（初回のみ生成・追加）
+    let stepDetails = null;
+    let stepSummary = null;
+    let stepBody = null;
 
-    const stepSummary = document.createElement('summary');
-    stepSummary.innerHTML = '<span>思考プロセス: <span class="tool-badge running">記録を取得中...</span></span>';
+    if (!this.hasLoadedThoughts) {
+      stepDetails = document.createElement('details');
+      stepDetails.className = 'tool-step';
+      stepDetails.open = true;
 
-    const stepBody = document.createElement('div');
-    stepBody.className = 'tool-step-body';
-    stepBody.textContent = '全過去思考記録（/docs/20260909-01.json）を読み込んでいます...';
+      stepSummary = document.createElement('summary');
+      stepSummary.innerHTML = '<span>思考プロセス: <span class="tool-badge running">記録を取得中...</span></span>';
 
-    stepDetails.appendChild(stepSummary);
-    stepDetails.appendChild(stepBody);
-    wrapper.appendChild(stepDetails);
+      stepBody = document.createElement('div');
+      stepBody.className = 'tool-step-body';
+      stepBody.textContent = '全過去思考記録を読み込んでいます...';
+
+      stepDetails.appendChild(stepSummary);
+      stepDetails.appendChild(stepBody);
+      wrapper.appendChild(stepDetails);
+    }
 
     // 応答バブル（初期はローディング表示）
     const responseBubble = document.createElement('div');
@@ -309,96 +355,119 @@ class ChatApp {
     this.scrollToBottom();
 
     // ロールバック用に現在の履歴長を保持
-    const previousHistoryLength = this.geminiContents.length;
+    const previousHistoryLength = this.messages.length;
 
     try {
-      if (this.provider === 'gemini') {
-        const client = new GeminiProvider(this.apiKey);
+      const client = new OpenAICompatibleProvider(this.baseUrl, this.apiKey, this.modelName);
 
-        // 1. ユーザーメッセージを履歴に追加
-        this.geminiContents.push({
-          role: 'user',
-          parts: [{ text: userText }]
-        });
+      // 1. ユーザーメッセージを履歴に追加
+      this.messages.push({
+        role: 'user',
+        content: userText
+      });
 
-        // 2. 1回目の呼び出し（必ずツールを1回実行させるため ANY モードを指定）
-        const forcedToolConfig = {
-          functionCallingConfig: {
-            mode: 'ANY',
-            allowedFunctionNames: ['all_past_thoughts']
+      let finalText = '';
+
+      if (!this.hasLoadedThoughts) {
+        // 初回: 強制ツール呼び出し → ツール実行 → 履歴追加 → 最終回答生成
+        const forcedToolChoice = {
+          type: 'function',
+          function: {
+            name: 'all_past_thoughts'
           }
         };
 
-        const firstResponse = await client.sendRequest(this.geminiContents, forcedToolConfig);
-        const candidate = firstResponse.candidates?.[0];
-        const modelMessage = candidate?.content;
+        const firstResponse = await client.sendChatCompletion(this.messages, {
+          tool_choice: forcedToolChoice
+        });
 
-        if (!modelMessage) {
+        const choice = firstResponse.choices?.[0];
+        const assistantMessage = choice?.message;
+
+        if (!assistantMessage) {
           throw new Error('モデルから応答が取得できませんでした。');
         }
 
-        // 履歴にモデルの呼び出し要求を追加
-        this.geminiContents.push(modelMessage);
-
-        // Function Call の抽出
-        const functionCallPart = modelMessage.parts?.find(p => p.functionCall);
-        if (!functionCallPart || functionCallPart.functionCall.name !== 'all_past_thoughts') {
+        const toolCalls = assistantMessage.tool_calls;
+        if (!toolCalls || toolCalls.length === 0) {
           throw new Error('想定されたツール呼び出し（all_past_thoughts）が行われませんでした。');
         }
 
-        // 3. ツール（all_past_thoughts）の実行
+        const targetToolCall = toolCalls.find(tc => tc.function?.name === 'all_past_thoughts') || toolCalls[0];
+
+        // ツール（all_past_thoughts）の実行
         const toolResult = await executeAllPastThoughts();
 
         // ステップUIの更新
-        stepSummary.innerHTML = `<span>思考プロセス: <span class="tool-badge">all_past_thoughts 完了 (${toolResult.count}件の記録)</span></span>`;
-        stepBody.innerHTML = `
-          <div>過去の思考記録（${toolResult.count}件）の取得およびデータクレンジングが完了しました。</div>
-          <div class="tool-step-details">抽出シーケンス一覧: [${toolResult.sequences.slice(0, 10).join(', ')}${toolResult.sequences.length > 10 ? ' ...' : ''}]</div>
-        `;
-        // 完了したらアコーディオンを閉じる（ユーザーが必要に応じて展開可能）
-        stepDetails.open = false;
+        if (stepSummary && stepBody && stepDetails) {
+          stepSummary.innerHTML = `<span>思考プロセス: <span class="tool-badge">all_past_thoughts 完了 (${toolResult.count}件の記録)</span></span>`;
+          stepBody.innerHTML = `
+            <div>過去の思考記録（${toolResult.count}件）の取得およびデータクレンジングが完了しました。</div>
+            <div class="tool-step-details">抽出シーケンス一覧: [${toolResult.sequences.slice(0, 10).join(', ')}${toolResult.sequences.length > 10 ? ' ...' : ''}]</div>
+          `;
+          // 完了したらアコーディオンを閉じる（ユーザーが必要に応じて展開可能）
+          stepDetails.open = false;
+        }
 
-        // 4. ツールの結果（functionResponse）を履歴に追加
-        // 【重要】Gemini REST API では functionResponse の role は 'user' です
+        // ツール呼び出しとツール結果を直接 this.messages に push
         const rawEngrams = toolResult.items.map(item => item.raw_engram);
-        this.geminiContents.push({
-          role: 'user',
-          parts: [
-            {
-              functionResponse: {
-                name: 'all_past_thoughts',
-                response: {
-                  output: rawEngrams
-                }
-              }
-            }
-          ]
+        this.messages.push(assistantMessage);
+        this.messages.push({
+          role: 'tool',
+          tool_call_id: targetToolCall.id,
+          content: JSON.stringify({
+            output: rawEngrams
+          })
         });
 
-        // 5. 2回目の呼び出し（ツールの結果を踏まえて最終回答を生成）
-        const finalResponse = await client.sendRequest(this.geminiContents, {
-          functionCallingConfig: { mode: 'AUTO' }
+        // 2回目の呼び出し（ツールの結果を踏まえて最終回答を生成）
+        const finalResponse = await client.sendChatCompletion(this.messages, {
+          tool_choice: 'auto'
         });
 
-        const finalCandidate = finalResponse.candidates?.[0];
-        const finalModelMessage = finalCandidate?.content;
-        const finalText = finalModelMessage?.parts?.map(p => p.text || '').join('') || '';
+        const finalChoice = finalResponse.choices?.[0];
+        const finalAssistantMessage = finalChoice?.message;
+        finalText = finalAssistantMessage?.content || '';
 
         if (!finalText) {
           throw new Error('最終的な回答テキストが空でした。');
         }
 
-        // 履歴に最終応答を追加
-        this.geminiContents.push(finalModelMessage);
+        // 最終応答をテキストのみの形式で履歴に追加
+        this.messages.push({
+          role: 'assistant',
+          content: finalText
+        });
 
-        // 画面に最終回答を描画
-        responseBubble.innerHTML = this.renderMarkdown(finalText);
+        this.hasLoadedThoughts = true;
+      } else {
+        // 2回目以降: ツール実行をスキップし、そのまま1回だけ呼び出し
+        const response = await client.sendChatCompletion(this.messages, {
+          tool_choice: 'none'
+        });
+
+        const choice = response.choices?.[0];
+        const assistantMessage = choice?.message;
+        finalText = assistantMessage?.content || '';
+
+        if (!finalText) {
+          throw new Error('最終的な回答テキストが空でした。');
+        }
+
+        // 応答を履歴に追加
+        this.messages.push({
+          role: 'assistant',
+          content: finalText
+        });
       }
+
+      // 画面に最終回答を描画
+      responseBubble.innerHTML = this.renderMarkdown(finalText);
     } catch (error) {
       console.error(error);
       // 失敗したターンの履歴をロールバック
-      this.geminiContents.splice(previousHistoryLength);
-      
+      this.messages.splice(previousHistoryLength);
+
       responseBubble.innerHTML = `<div class="error-notice">⚠️ <strong>エラーが発生しました:</strong><br>${escapeHtml(error.message)}</div>`;
     } finally {
       this.isProcessing = false;
