@@ -76,7 +76,7 @@ def main():
 
             for engram in engrams:
                 sequence_id = str(engram.get("sequence"))
-                keys_to_index = [k for k in engram.keys() if k not in ["sequence", "category", "description"]]
+                keys_to_index = [k for k in engram.keys() if k not in ["sequence", "category", "description", "intensity"]]
 
                 for key in keys_to_index:
                     text_content = engram.get(key)
