@@ -1,5 +1,7 @@
 import os
 import json
+import html
+from typing import List, Dict, Any
 import chainlit as cl
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -50,6 +52,25 @@ async def on_chat_start():
     cl.user_session.set("messages", [{"role": "system", "content": system_prompt}])
     await cl.Message(content=welcome_message).send()
 
+def convert_engrams_to_pseudo_xml(engrams: List[Dict[str, Any]], root_tag: str = "past_thoughts") -> str:
+    """
+    思考データ（engrams）のリストを擬似XML形式に変換する。
+    LLMのアテンション希釈を防ぎ、タグ構造によって意味境界を明確化する。
+    """
+    lines = [f"<{root_tag}>"]
+    for engram in engrams:
+        lines.append("  <thought>")
+        for key, value in engram.items():
+            if isinstance(value, (dict, list)):
+                str_value = json.dumps(value, ensure_ascii=False)
+            else:
+                str_value = str(value)
+            lines.append(f"    <{key}>{html.escape(str_value)}</{key}>")
+        lines.append("  </thought>")
+    lines.append(f"</{root_tag}>")
+    return "\n".join(lines)
+
+
 # ==========================================
 # ツール（Function Calling）- L1ライブラリ直接呼出
 # ==========================================
@@ -70,12 +91,12 @@ async def search_past_thoughts(query: str) -> str:
         return "指定されたクエリに関連する過去の記録は見つかりませんでした。"
         
     raw_engrams = [item.get("raw_engram", {}) for item in retrieved_items]
-    json_output = json.dumps(raw_engrams, ensure_ascii=False, indent=2)
+    xml_output = convert_engrams_to_pseudo_xml(raw_engrams, root_tag="past_thoughts")
     
     seq_list = [item["sequence"] for item in retrieved_items]
     current_step.output = f"抽出したシーケンス: {seq_list}"
     
-    return json_output
+    return xml_output
 
 tools = [SEARCH_PAST_THOUGHTS_TOOL]
 

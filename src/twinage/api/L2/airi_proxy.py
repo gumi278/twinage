@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import html
 import time
 import uuid
 from fastapi import FastAPI, Request
@@ -61,6 +62,25 @@ class ChatCompletionRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+def convert_engrams_to_pseudo_xml(engrams: List[Dict[str, Any]], root_tag: str = "past_thoughts") -> str:
+    """
+    思考データ（engrams）のリストを擬似XML形式に変換する。
+    LLMのアテンション希釈を防ぎ、タグ構造によって意味境界を明確化する。
+    """
+    lines = [f"<{root_tag}>"]
+    for engram in engrams:
+        lines.append("  <thought>")
+        for key, value in engram.items():
+            if isinstance(value, (dict, list)):
+                str_value = json.dumps(value, ensure_ascii=False)
+            else:
+                str_value = str(value)
+            lines.append(f"    <{key}>{html.escape(str_value)}</{key}>")
+        lines.append("  </thought>")
+    lines.append(f"</{root_tag}>")
+    return "\n".join(lines)
+
+
 # ==========================================
 # ツール実行関数 (L1ライブラリ直接呼出)
 # ==========================================
@@ -76,7 +96,7 @@ async def execute_search_past_thoughts(query: str) -> str:
             return "指定されたクエリに関連する過去の記憶は見つかりませんでした。"
         raw_engrams = [item.get("raw_engram", {}) for item in items]
         print(f"✅ [AIRI Proxy Tool] L1から {len(items)} 件の記憶を取得しました。")
-        return json.dumps(raw_engrams, ensure_ascii=False, indent=2)
+        return convert_engrams_to_pseudo_xml(raw_engrams, root_tag="past_thoughts")
     except Exception as e:
         print(f"❌ [AIRI Proxy Tool] L1検索エラー: {e}")
         return "記憶へのアクセスに失敗しました。"
