@@ -419,9 +419,8 @@ class ChatApp {
         this.messages.push({
           role: 'tool',
           tool_call_id: targetToolCall.id,
-          content: JSON.stringify({
-            output: rawEngrams
-          })
+          // JSON.stringify から擬似XML変換関数に置き換え
+          content: convertEngramsToPseudoXml(rawEngrams)
         });
 
         // 2回目の呼び出し（ツールの結果を踏まえて最終回答を生成）
@@ -480,6 +479,27 @@ class ChatApp {
       this.scrollToBottom();
     }
   }
+}
+
+/**
+ * 思考データ（engrams）の配列を擬似XML形式に変換する
+ * LLMのアテンション希釈を防ぐため、JSONではなくタグ構造で出力する
+ */
+function convertEngramsToPseudoXml(engrams) {
+  let xml = '<all_past_thoughts>\n';
+  
+  engrams.forEach(engram => {
+    xml += '  <thought>\n';
+    for (const [key, value] of Object.entries(engram)) {
+      // 値がオブジェクト等の場合は stringify し、文字列化してからエスケープ処理を通す
+      const strValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      xml += `    <${key}>${escapeHtml(strValue)}</${key}>\n`;
+    }
+    xml += '  </thought>\n';
+  });
+  
+  xml += '</all_past_thoughts>';
+  return xml;
 }
 
 function escapeHtml(str) {
